@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: telegram-lead-bot
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: python main.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: GROUP_CHAT_ID
+        sync: false
+      - key: GOOGLE_CREDS_JSON
+        sync: false
+    autoDeploy: false
