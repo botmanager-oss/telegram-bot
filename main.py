@@ -12,7 +12,7 @@ from keep_alive import keep_alive
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+keep_alive()
 
 # Load secrets from environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -138,8 +138,4 @@ conv_handler = ConversationHandler(
 )
 
 app.add_handler(conv_handler)
-
-if __name__ == "__main__":
-    keep_alive()
-    app.run_polling()
-
+app.run_polling()
