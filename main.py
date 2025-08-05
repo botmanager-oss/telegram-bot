@@ -1,141 +1,121 @@
-
-import logging
 import os
 import json
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+import asyncio
+import logging
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
-from keep_alive import keep_alive
+from flask import Flask
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    filters, ConversationHandler, ContextTypes
+)
 
+# Logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-keep_alive()
-
-# Load secrets from environment variables
+# Env vars
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
 GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON")
 
-if not BOT_TOKEN or not GROUP_CHAT_ID or not GOOGLE_CREDS_JSON:
-    raise ValueError("Missing required environment variables. Please set BOT_TOKEN, GROUP_CHAT_ID, and GOOGLE_CREDS_JSON in Secrets.")
+# Write credentials.json from env
+with open("credentials.json", "w") as f:
+    f.write(GOOGLE_CREDS_JSON)
 
-BUDGET, DISTRICT, TIMING, CREDIT, PHONE = range(5)
-
-# Initialize Google Sheets
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
-]
-creds_dict = json.loads(GOOGLE_CREDS_JSON)
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+# Google Sheets setup
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(creds)
 sheet = client.open("Telegram Leads").sheet1
 
-def save_to_sheet(data):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    row = [
-        data.get("phone", ""),
-        data.get("budget", ""),
-        data.get("district", ""),
-        data.get("timing", ""),
-        data.get("credit", ""), now
-    ]
-    sheet.append_row(row)
-
+# States
+BUDGET, DISTRICT, TIMING, CREDIT, PHONE = range(5)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🏡 Ассалому алайкум! Менинг исмим Баходир. Тошкентдан квартира қидиряпсизми? Мен Сизга албатта ёрдам бера оламан.\nКелинг, Сизга аниқ таклиф юборишимиз учун бир нечта саволларга жавоб берсангиз.\n\nАвваламбор, харид учун бюджетингиз қанча?:",
-        reply_markup=ReplyKeyboardMarkup(
-            [["💸30 000$ гача"], ["💵 30 000$ – 50 000$"],
-             ["💰 50 000$ – 70 000$"], ["💵 70 000 дан юқори"]],
-            one_time_keyboard=True,
-            resize_keyboard=True))
+    await update.message.reply_text("Ассалому алайкум! Уй қидиришда сизга ёрдам бераман. Бюджетингизни киритинг (млн сўмда):")
     return BUDGET
-
 
 async def budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["budget"] = update.message.text
-    await update.message.reply_text(
-        "Зўр! Энди, 📍 қайси тумандан хохлайсиз?",
-        reply_markup=ReplyKeyboardMarkup(
-            [["🏙 Сергели"], ["🏢 Мирзо Улуғбек"], ["🏠 Чилонзор"], ["🌆 Яшнобод"],
-             ["🌏 тумани аниқ эмас"]],
-            one_time_keyboard=True,
-            resize_keyboard=True))
+    await update.message.reply_text("Қандай туманда уй қидиряпсиз?")
     return DISTRICT
-
 
 async def district(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["district"] = update.message.text
-    await update.message.reply_text(
-        "Хўп!🕒 Қачон харид қилишни режалаштиряпсиз?",
-        reply_markup=ReplyKeyboardMarkup(
-            [["⏱ 1 ой ичида"], ["🕓 2-3 ойда"], ["👀 Шунчаки кўрияпман"]],
-            one_time_keyboard=True,
-            resize_keyboard=True))
+    await update.message.reply_text("Қачонга керак уй? Масалан, 1 ой ичида")
     return TIMING
-
 
 async def timing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["timing"] = update.message.text
-    await update.message.reply_text(
-        "🏦 Квартирани кредит орқали олишни ўйлаяпсизми?",
-        reply_markup=ReplyKeyboardMarkup(
-            [["✅ Ҳа"], ["❌ Йўқ"], ["🤔 Ҳали билмайман"]],
-            one_time_keyboard=True,
-            resize_keyboard=True))
+    await update.message.reply_text("Ҳисобда кредит борми ёки нақдми?")
     return CREDIT
-
 
 async def credit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["credit"] = update.message.text
-    await update.message.reply_text(
-        "Яхши, охирги қадам — Сиз билан боғланишимиз учун илтимос телефон рақамингизни ёзинг:"
-    )
+    await update.message.reply_text("Телефон рақамингизни қолдиринг:")
     return PHONE
-
 
 async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["phone"] = update.message.text
-    summary = (f"📞 Телефон: {context.user_data['phone']}\n"
-               f"💰 Бюджет: {context.user_data['budget']}\n"
-               f"📍 Туман: {context.user_data['district']}\n"
-               f"🕒 Муддат: {context.user_data['timing']}\n"
-               f"🏦 Кредит: {context.user_data['credit']}")
-    await update.message.reply_text(
-        "✅ Рахмат! Маълумотлар қабул қилинди. Энг мос таклифларни тайёрлаб, тез орада Сиз билан боғланамиз.\n\n"
-        + summary)
 
-    save_to_sheet(context.user_data)
+    user = context.user_data
+    text = (
+        f"📥 ЯНГИ ЛИД:\n\n"
+        f"💰 Бюджет: {user['budget']}\n"
+        f"📍 Туман: {user['district']}\n"
+        f"⏱ Муддат: {user['timing']}\n"
+        f"💳 Кредит: {user['credit']}\n"
+        f"📞 Телефон: {user['phone']}"
+    )
 
-    await context.bot.send_message(chat_id=GROUP_CHAT_ID,
-                                   text="📥 Yangi lead:\n\n" + summary)
+    # Send to group
+    await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=text)
 
+    # Save to Google Sheet
+    sheet.append_row([
+        user["budget"], user["district"],
+        user["timing"], user["credit"], user["phone"]
+    ])
+
+    await update.message.reply_text("Раҳмат! Маълумотлар қабул қилинди.")
     return ConversationHandler.END
-
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Жараён бекор қилинди.")
+    await update.message.reply_text("Бекор қилинди.")
     return ConversationHandler.END
 
+# Keep alive server
+def keep_alive():
+    app = Flask(__name__)
 
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+    @app.route('/')
+    def home():
+        return "Bot is alive"
 
-conv_handler = ConversationHandler(
-    entry_points=[CommandHandler("start", start)],
-    states={
-        BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, budget)],
-        DISTRICT: [MessageHandler(filters.TEXT & ~filters.COMMAND, district)],
-        TIMING: [MessageHandler(filters.TEXT & ~filters.COMMAND, timing)],
-        CREDIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, credit)],
-        PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone)],
-    },
-    fallbacks=[CommandHandler("cancel", cancel)],
-)
+    from threading import Thread
+    Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 8080}).start()
 
-app.add_handler(conv_handler)
-app.run_polling()
+# Run bot
+if __name__ == "__main__":
+    keep_alive()
+
+    async def main():
+        app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+        conv_handler = ConversationHandler(
+            entry_points=[CommandHandler("start", start)],
+            states={
+                BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, budget)],
+                DISTRICT: [MessageHandler(filters.TEXT & ~filters.COMMAND, district)],
+                TIMING: [MessageHandler(filters.TEXT & ~filters.COMMAND, timing)],
+                CREDIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, credit)],
+                PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone)],
+            },
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
+
+        app.add_handler(conv_handler)
+        await app.run_polling()
+
+    asyncio.run(main())
