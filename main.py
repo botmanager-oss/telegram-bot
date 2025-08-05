@@ -9,8 +9,6 @@ from telegram.ext import (
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
-import asyncio
-from keep_alive import keep_alive
 
 # Logging setup
 logging.basicConfig(
@@ -21,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Load sensitive values from environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
+GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID")) if os.getenv("GROUP_CHAT_ID") else None
 
 # Handle Google Credentials stored as JSON string
 GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON")
@@ -123,10 +121,12 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_to_sheet(context.user_data)
 
     # Send admin notification to group chat
-    try:
-        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text="📥 Yangi lead:\n\n" + summary)
-    except Exception as e:
-        logger.error(f"Error sending message to group: {e}")
+    if GROUP_CHAT_ID:
+        try:
+            await context.bot.send_message(chat_id=GROUP_CHAT_ID, text="📥 Yangi lead:\n\n" + summary)
+            logger.info("Message sent to group successfully")
+        except Exception as e:
+            logger.error(f"Error sending message to group: {e}")
     
     return ConversationHandler.END
 
@@ -134,14 +134,16 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Jarayon bekor qilindi.")
     return ConversationHandler.END
 
-async def main():
+def main():
     """Main function to run the bot"""
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not found in environment variables")
         return
     
+    logger.info("Starting Telegram Bot...")
+    
     # Create application
-    app = Application.builder().token(BOT_TOKEN).build()
+    application = Application.builder().token(BOT_TOKEN).build()
 
     # Create conversation handler
     conv_handler = ConversationHandler(
@@ -157,27 +159,12 @@ async def main():
     )
 
     # Add handlers
-    app.add_handler(conv_handler)
+    application.add_handler(conv_handler)
     
-    logger.info("Bot starting...")
+    logger.info("Bot is ready and polling for messages...")
     
-    # Start the bot
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    
-    # Keep the bot running
-    logger.info("Bot is running. Press Ctrl+C to stop.")
-    try:
-        await asyncio.Event().wait()
-    except KeyboardInterrupt:
-        logger.info("Received stop signal")
-    finally:
-        await app.updater.stop()
-        await app.stop()
-        await app.shutdown()
+    # Start the bot with polling
+    application.run_polling(drop_pending_updates=True)
 
-# Entry point
 if __name__ == "__main__":
-    keep_alive()
-    asyncio.run(main())
+    main()
