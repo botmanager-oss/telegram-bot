@@ -104,7 +104,7 @@ async def timing(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def credit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["credit"] = update.message.text
-    await update.message.reply_text("Яхши, охирги қадам — Сиз билан боғланишимиз учун илтимос телефон рақамингизни ёзинг:")
+    await update.message.reply_text("Яхши, охирги қадам — Сиз билан боғланишимиз учун илтимос 📞телефон рақамингизни ёзинг:")
     return PHONE
 
 async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
