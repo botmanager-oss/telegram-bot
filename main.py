@@ -115,7 +115,7 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
                f"🕒 Муддат: {context.user_data['timing']}\n"
                f"🏦 Кредит: {context.user_data['credit']}")
     
-    await update.message.reply_text("✅ Ma'lumotlaringiz qabul qilindi!\n\n" + summary)
+    await update.message.reply_text("✅ Рахмат! Маълумотлар қабул қилинди. Энг мос таклифларни тайёрлаб, тез орада Сиз билан боғланамиз.\n\n" + summary)
 
     # Save to Google Sheet
     save_to_sheet(context.user_data)
@@ -123,7 +123,7 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Send admin notification to group chat
     if GROUP_CHAT_ID:
         try:
-            await context.bot.send_message(chat_id=GROUP_CHAT_ID, text="📥 Yangi lead:\n\n" + summary)
+            await context.bot.send_message(chat_id=GROUP_CHAT_ID, text="📥 Янги лид:\n\n" + summary)
             logger.info("Message sent to group successfully")
         except Exception as e:
             logger.error(f"Error sending message to group: {e}")
